@@ -15,6 +15,8 @@
  */
 package org.kurron.example.rest.inbound
 
+import javax.validation.Valid
+
 import static org.kurron.example.rest.feedback.ExampleFeedbackContext.CONTENT_LENGTH_REQUIRED
 import static org.kurron.example.rest.feedback.ExampleFeedbackContext.PAYLOAD_TOO_LARGE
 import static org.kurron.example.rest.feedback.ExampleFeedbackContext.PRECONDITION_FAILED
@@ -107,6 +109,11 @@ class RestInboundGateway extends AbstractFeedbackAware {
         counterService = aCounterService
         gaugeService = aGaugeService
 
+    }
+
+    @RequestMapping( method = POST, consumes = ValidationExampleControl.MIME_TYPE, produces = ValidationExampleControl.MIME_TYPE )
+    ResponseEntity<ValidationExampleControl> echo( @RequestBody @Valid ValidationExampleControl request ) {
+        new ResponseEntity( request, HttpStatus.CREATED )
     }
 
     /**
