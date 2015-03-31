@@ -1,0 +1,200 @@
+= Example API Guide
+JVM Guy;
+:doctype: book
+:toc:
+:sectanchors:
+:sectlinks:
+:toclevels: 4
+:source-highlighter: highlightjs
+
+[[overview]]
+= Overview
+
+[[overview-http-verbs]]
+== HTTP verbs
+
+The Application tries to adhere as closely as possible to standard HTTP and REST conventions in its
+use of HTTP verbs.
+
+|===
+| Verb | Usage
+
+| `GET`
+| Used to retrieve a resource
+
+| `POST`
+| Used to create a new resource
+
+| `PUT`
+| Not currently supported
+
+| `PATCH`
+| Not currently supported
+
+| `DELETE`
+| Not currently supported
+
+| `HEAD`
+| Not currently supported
+
+| `OPTIONS`
+| Not currently supported
+|===
+
+[[overview-http-status-codes]]
+== HTTP status codes
+
+The Application tries to adhere as closely as possible to standard HTTP and REST conventions in its
+use of HTTP status codes.
+
+|===
+| Status code | Usage
+
+| `200 OK`
+| The request completed successfully.
+
+| `201 Created`
+| A new resource has been created successfully. The resource's URI is available from the response's
+`Location` header.
+
+| `400 Bad Request`
+| The request was malformed. The response body will include an error providing further information.
+
+| `404 Not Found`
+| The requested resource did not exist. The response body will include an error providing further information.
+
+| `411 Length Required`
+| The request is missing the required Content- Length header. The response body will include an error providing further information.
+
+| `412 Precondition Failed`
+| The request is missing a required custom header. The response body will include an error providing further information.
+
+| `413 Request Entity Too Large`
+| The uploaded entity is too large for the service to handle. The response body will include an error providing further information.
+|===
+
+[[overview-required-http-headers]]
+== Required HTTP headers
+
+A small number of HTTP headers are required to be in all requests.
+
+|===
+| Header | Usage
+
+| X-Correlation-Id
+| The Application is part of a large network of cooperating services and publishes its log messages to a centralized server.  To facilitate the tracing of events and messages between systems, the application requires that a correlation id be provided with each request. If the client is the initiator of an action, then a new id should be generated.  If the client, however, is reacting to an outside event or message, the client should propogate the correlation id it was handed.
+|===
+
+[[overview-errors]]
+== Errors
+
+Most operations return a hypermedia control. Whenever an error response (status code >= 400) is returned,
+the control will contain information that describes the problem. The control will populate the following fields in a failure scenario:
+
+|===
+| Field | Description
+
+| http-code
+| The HTTP status code being returned, e.g. 413.  Useful for clients that have difficulty accessing HTTP headers.
+
+| code
+| An integer code uniquely identifying the error message being returned. Helpful when troubleshooting failures.
+
+| message
+| A short message describing the problem using terms suitable for end users.
+
+| developer-message
+| A more detailed message describing the problem using terms suitable for developers.
+|===
+
+For example, a request that attempts to fetch a non-existent asset will produce a
+`400 Bad Request` response:
+
+include::{generated}/failure-scenario/response.asciidoc[]
+
+[[overview-hypermedia]]
+== Hypermedia
+
+The application uses a simple hypermedia control that includes links to other resources that the client
+can use to navigate around the service. Links can be found beneath the `links` key.
+
+IMPORTANT:  Users of the API should not created URIs themselves, instead they should use
+the above-described links to navigate from resource to resource.  Failure to observe this rule will undoubtedly
+result in errors as services and URIs change.
+
+[[overview-miscellaneous]]
+== Miscellaneous
+
+The application does not currently require any form of authentication, expecting that the service will not be
+exposed directly to the public internet.  The application does not currently rate limit requests, expecting that
+API users will be prudent in their use of the service.
+
+[[resources]]
+= Resources
+
+[[resources-index]]
+== Binary Asset
+
+A Binary Asset is a collection of bytes that are temporarily stored on the server.
+During the upload process, additional meta-data can be added to the asset for later
+retrieval. Once an asset has expired and is evicted from the server, that asset will
+no longer be available for download.
+
+[[api-discovery]]
+=== API discovery
+
+A `GET` request will return a collection of links to the currently supported resources.
+Interpreting those resources will allow the API user to navigate the API without having
+to hard code well-known URIs.
+
+IMPORTANT: The API and its URIs are likely to change over time so it is important the caller
+always begin a session with API discovery to obtain the currently supported URIs.
+
+==== Example Conversation
+
+include::{generated}/api-discovery/request-response.asciidoc[]
+
+[[asset-upload]]
+=== Uploading the asset
+
+A `POST` request is used to upload the asset.  The `Content-Type` header is used to communicate
+both the asset's actual type and additional meta-data.  The application adheres to the https://tools.ietf.org/html/rfc2045[RFC 2045]
+standard and makes use of MIME type parameters to communicate additional meta-data.  Example usages include
+specifying an image's height and width or an audio file's sample rate.  The response will contain the hypermedia control
+describing the successful operation as well as other resources that can be accessed.
+
+|===
+| Notable Header | Usage
+| X-Expiration-Minutes
+| Required. The number of minutes that the application should hold onto the asset before evicting it from the system.
+| Content-Type
+| Required. The MIME type of the asset.  The parameters portion of the MIME type can hold arbitrary key-value pairs which is useful for storing custom meta-data.
+|===
+
+==== Example Conversation
+
+include::{generated}/asset-storage/request-response.asciidoc[]
+
+[[asset-download]]
+=== Downloading the asset
+
+A `GET` request is used to fetch the asset.
+
+IMPORTANT: The `Accept` header must be configured to accept both the MIME type of the asset as
+well as the MIME type of the hypermedia control.  In event of a failure, the control will be
+returned instead of the asset.
+
+==== Example Conversation
+
+include::{generated}/asset-download/request-response.asciidoc[]
+
+[[current-limitations]]
+=== Current Limitations
+
+The service currently does not distinguish between assets that have expired and have been evicted from the system and
+assets that have never existed.  It should be possible to use the `410 Gone` status code to indicate evicted assets if
+enough API users request the feature.
+
+The service currently does support the ability to obtain the asset's meta-data other than what is returned as part of
+the original upload.  It should be possible to support a combination of `GET` and the `Accept` header to support obtaining
+just the meta-data if enough API users request the feature.

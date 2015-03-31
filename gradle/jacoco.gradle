@@ -1,0 +1,63 @@
+/*
+ * Copyright (c) 2015. Ronald D. Kurr kurr@jvmguy.com
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+apply plugin: 'jacoco'
+
+jacoco {
+    toolVersion = jacocoVersion
+}
+
+jacocoTestReport {
+    reports {
+        xml.enabled true
+        csv.enabled true
+        html.enabled true
+    }
+}
+
+// Since the JaCoCo plug in does not honor excludes or break the build if coverage thresholds are crossed, we have to do it by hand.
+task verifyCodeCoverage( dependsOn: 'jacocoTestReport' ) {
+    description = 'Parses the generated JaCoCo xml report, and determines if sufficient coverage is present.'
+    group = 'Build'
+
+    doFirst {
+        def jacocoReportPath = "${jacoco.reportsDir}/test/jacocoTestReport.xml"
+        def jacocoReportFile = new File( jacocoReportPath )
+        if ( jacocoReportFile.exists() ) {
+            // configure the parser to ignore the DOCTYPE tag since report.dtd does not exist on the system
+            def parser = new XmlParser( false, false, true )
+            parser.setFeature( 'http://apache.org/xml/features/nonvalidating/load-external-dtd', false )
+            def xml = parser.parse( jacocoReportFile )
+
+            def jacocoExclude = coverageExcludes ? coverageExcludes : []
+            jacocoExclude.each { logger.info "Excluding ${it} from code coverage check." }
+            def filtered = xml.package.class.findAll { clazz -> !jacocoExclude.any { clazz.@name.contains( it ) } }
+            def instructions = filtered.collect{ it.counter }.flatten().findAll{ it.@type == 'INSTRUCTION' }.flatten()
+            def offenders = instructions.findAll { (it.@missed as int) >= (it.@covered as int) }.collect { it.parent().attributes().name }
+            if ( offenders ) {
+                offenders.each { logger.error "Insufficient code coverage: ${it}" }
+                throw new IllegalStateException( "Not enough code coverage! Consult ${jacoco.reportsDir}/test/html/index.html for details." )
+            }
+            else {
+                logger.info 'Adequate code coverage detected.'
+            }
+        }
+        else {
+            logger.info 'No JaCoCo report was generated.'
+        }
+    }
+}
+check.dependsOn 'verifyCodeCoverage'
