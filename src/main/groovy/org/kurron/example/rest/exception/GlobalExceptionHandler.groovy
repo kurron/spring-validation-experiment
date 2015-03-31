@@ -15,6 +15,8 @@
  */
 package org.kurron.example.rest.exception
 
+import org.springframework.web.bind.MethodArgumentNotValidException
+
 import static org.kurron.example.rest.feedback.ExampleFeedbackContext.GENERIC_ERROR
 import org.kurron.example.rest.inbound.ErrorBlock
 import org.kurron.example.rest.inbound.HypermediaControl
@@ -54,18 +56,34 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler implements F
 
     @Override
     protected ResponseEntity<HypermediaControl> handleExceptionInternal( Exception e,
-                                                                    Object body,
-                                                                    HttpHeaders headers,
-                                                                    HttpStatus status,
-                                                                    WebRequest request ) {
+                                                                         Object body,
+                                                                         HttpHeaders headers,
+                                                                         HttpStatus status,
+                                                                         WebRequest request ) {
         sendFeedback( GENERIC_ERROR, e.message )
-        def control = new HypermediaControl( httpCode: status.value() )
-        control.errorBlock = new ErrorBlock( code: GENERIC_ERROR.code,
-                                             message: e.message,
-                                             developerMessage: 'Indicates that the exception was not handled explicitly and is being handled as a generic error' )
-        wrapInResponseEntity( control, status, headers )
+        // I don't like this but I just wanted to see if it would work
+        if ( e instanceof MethodArgumentNotValidException ) {
+            return handleValidationException( e )
+        }
+        else {
+            def control = new HypermediaControl( httpCode: status.value() )
+            control.errorBlock = new ErrorBlock( code: GENERIC_ERROR.code,
+                    message: e.message,
+                    developerMessage: 'Indicates that the exception was not handled explicitly and is being handled as a generic error' )
+            return wrapInResponseEntity( control, status, headers )
+        }
     }
 
+    // Spring thinks this is ambiguous
+//    @ExceptionHandler( MethodArgumentNotValidException )
+    static ResponseEntity<HypermediaControl> handleValidationException( MethodArgumentNotValidException e ) {
+        def control = new HypermediaControl( httpCode: HttpStatus.BAD_REQUEST.value() ).with {
+            def detail = e.bindingResult.allErrors.first()
+            errorBlock = new ErrorBlock( code: GENERIC_ERROR.code, message: 'Validation failure', developerMessage: detail.field  + ' ' + detail.defaultMessage )
+            it
+        }
+        wrapInResponseEntity( control, HttpStatus.BAD_REQUEST )
+    }
     /**
      * Handles errors thrown by the application itself.
      * @param e the error.
