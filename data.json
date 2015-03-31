@@ -1,4 +1,4 @@
 {
-    "some-boolean" : true,
-    "some-integer" : 0
+    "some-boolean" : false,
+    "some-integer" : 101
 }
