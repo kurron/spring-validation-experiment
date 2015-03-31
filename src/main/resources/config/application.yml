@@ -19,11 +19,11 @@ spring:
     # Redis configuration (see RedisProperties for details)
     redis:
         database: 0 # redis relies on 0-based index database names
-        host: redis
+        host: localhost
         port: 6379
 
     rabbitmq:
-        host: rabbitmq
+        host: localhost
         port: 5672
         username: guest
         password: guest
